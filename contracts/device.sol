@@ -7,7 +7,9 @@ contract IoT_Device{
 
     event RegisteredDevice(string id, address owner);
 
-    //included impact data arguments
+  /**
+   * @notice Creates a hash signature using device DID, registered owner's address and impact data
+  */
     function hash(
         string memory _id,
         address _addr,
@@ -18,14 +20,17 @@ contract IoT_Device{
         return keccak256(abi.encodePacked(_id, _addr, _impactData_1, _impactData_2, _impactData_3));
     }
 
-    //Registration find function
+  /**
+   * @notice Retrieves registered device owner's address
+  */
     function findDeviceOwner(string memory _id) public view returns (address) {
         return (deviceOwner[_id]);
     }
 
 
-    //Pebble setFirmware function
-    //Registration setOwner function
+  /**
+   * @notice Register IoT device under specific issuer
+  */
     function registerDevice(string memory _id) public {
         address owner = findDeviceOwner(_id);
         require(owner != msg.sender, "device is registered");
@@ -34,8 +39,9 @@ contract IoT_Device{
         emit RegisteredDevice(_id, msg.sender);
     }
 
-    //Pebble recover function
-    // included impact data arguments
+  /**
+   * @notice Verifies device signature
+  */
     function checkDevice(
         string memory _id,
         bytes32 _signature,

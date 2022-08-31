@@ -233,7 +233,6 @@ contract SLB_Bond is Ownable, Pausable, IoT_Device{
     currentPeriod = currentPeriod.add(1);
     require(block.timestamp >= couponDateCalculator(activeDate, maturityDate, periods, currentPeriod),
     "Current date is not past coupon date");
-    //included impact data arguments 
     require(checkDevice(_id, _signature, _impactData_1, _impactData_2, _impactData_3) == true, "invalid signature");
     
     if(_impactData_1 > 0){
@@ -317,9 +316,7 @@ contract SLB_Bond is Ownable, Pausable, IoT_Device{
     }
   }
 
-  // INVESTORS CAN CLAIM ANY COUPON AT CURRENT PERIOD AND BEFORE
-  // ASSUMPTION: ALL PERIODS BEFORE CURRENT PERIOD HAVE BEEN VERIFIED
-  // CLAIM COUPON SHOULD ONLY WORK ONCE PER PERIOD FOR EACH INVESTOR 
+
   /**
    * @dev Role: INVESTOR, Bond state: Active
    * @notice Claim coupon amount from bond balance for the period. 
