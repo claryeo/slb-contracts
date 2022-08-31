@@ -91,6 +91,7 @@ contract SLB_Bond is Ownable, Pausable, IoT_Device{
     _;
   }
 
+
   /**
    * @dev Role: MASTER, Bond state: Pre-issue
    * @notice Sets the issuer and verifier addresses
@@ -280,15 +281,12 @@ contract SLB_Bond is Ownable, Pausable, IoT_Device{
     emit VerifiedImpact(_metKPIs);
   }
 
-
   /**
    * @dev Role: Any, Bond state: Any
    * @notice Checks if bond balance is sufficient
   */
-  // Does not need to be pure because internal function - still cost gas
   function checkBalance(uint256 _value) public view returns(bool) { 
     bool _balanceSufficient;
-
     if(address(this).balance < _value){ 
       _balanceSufficient = false;
       return _balanceSufficient;
@@ -315,7 +313,6 @@ contract SLB_Bond is Ownable, Pausable, IoT_Device{
       return _coupon;
     }
   }
-
 
   /**
    * @dev Role: INVESTOR, Bond state: Active
@@ -387,7 +384,6 @@ contract SLB_Bond is Ownable, Pausable, IoT_Device{
   function defaultClaim(uint256 _value) public whenNotPaused {
     require(status == BondState.BANKRUPT, "Bond status is not Bankrupt.");
     require(bondsCount[msg.sender] > 0, "No bonds purchased");
-
     payable(msg.sender).transfer(_value);
 
     emit ClaimedDefault(msg.sender, bondsCount[msg.sender]);

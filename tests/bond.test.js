@@ -7,12 +7,13 @@ describe('SLB_Bond contract', function () {
     let addr1;
     let addr2;
     let addr3;
+    let addr4;
     let addrs;
 
     let bond;
 
     beforeEach(async function () {
-        [owner, addr1, addr2, addr3, ...addrs] = await ethers.getSigners();
+        [owner, addr1, addr2, addr3, addr4, ...addrs] = await ethers.getSigners();
 
         // Deploy Contract
         const SLB_Bond = await ethers.getContractFactory('SLB_Bond');
@@ -66,12 +67,13 @@ describe('SLB_Bond contract', function () {
                                 10, 
                                 5, 
                                 100, 
-                                (nowUnix),
+                                (nowUnix + 1),
                                 (nowUnix + 20000),
                                 (nowUnix + 30000));
             console.log('transaction hash: ' + newBond.hash);
             await newBond.wait();
             expect((await bond.connect(addr1).status()).toString()).to.equal("1");
+            await new Promise(resolve => setTimeout(resolve, 1000));
             const bondActive = await bond.connect(addr1).setBondActive();
             await bondActive.wait();
             expect((await bond.connect(addr1).status()).toString()).to.equal("2");
@@ -100,20 +102,19 @@ describe('SLB_Bond contract', function () {
                                 10, 
                                 5, 
                                 100, 
-                                (nowUnix),
                                 (nowUnix + 1),
-                                (nowUnix + 2));
+                                (nowUnix + 2),
+                                (nowUnix + 3));
            
             await newBond.wait();
+            await new Promise(resolve => setTimeout(resolve, 1000));
             const bondActive = await bond.connect(addr1).setBondActive();
-            await bondActive.wait();
 
             const deviceRegister = await bond.connect(addr1).registerDevice("123");
-            await deviceRegister.wait();
-
-            const deviceHash = await bond.connect(addr1).hash("123", addr1.getAddress());
+        
+            const deviceHash = await bond.connect(addr1).hash("123", addr1.getAddress(), 1, 2, 3);
             
-            expect((await bond.connect(addr1).checkDevice("123", deviceHash))).to.equal(true);
+            expect((await bond.connect(addr1).checkDevice("123", deviceHash, 1, 2, 3))).to.equal(true);
 
             const bondReport = await bond.connect(addr1).reportImpact(1,2,3,"123", deviceHash);
             await bondReport.wait();
@@ -140,6 +141,8 @@ describe('SLB_Bond contract', function () {
 
             expect((await bond.connect(addr4).paused()).toString()).to.equal("false");
         });
+
+
 
     });
 

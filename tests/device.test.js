@@ -31,8 +31,8 @@ describe('IoT_Device contract', function () {
         const deviceRegister = await device.connect(owner).registerDevice("123");
         console.log('transaction hash: ' + deviceRegister.hash);
         await deviceRegister.wait();
-        const deviceHash = await device.connect(owner).hash("123", owner.getAddress());
-        expect((await device.connect(owner).checkDevice("123", deviceHash))).to.equal(true);
+        const deviceHash = await device.connect(owner).hash("123", owner.getAddress(), 1, 2 , 3);
+        expect((await device.connect(owner).checkDevice("123", deviceHash, 1, 2, 3))).to.equal(true);
       });
 
   });
