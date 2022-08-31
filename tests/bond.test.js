@@ -72,7 +72,7 @@ describe('SLB_Bond contract', function () {
             console.log('transaction hash: ' + newBond.hash);
             await newBond.wait();
             expect((await bond.connect(addr1).status()).toString()).to.equal("1");
-            const bondActive = await bond.connect(addr1).setbondActive();
+            const bondActive = await bond.connect(addr1).setBondActive();
             await bondActive.wait();
             expect((await bond.connect(addr1).status()).toString()).to.equal("2");
         });
@@ -105,7 +105,7 @@ describe('SLB_Bond contract', function () {
                                 (nowUnix + 2));
            
             await newBond.wait();
-            const bondActive = await bond.connect(addr1).setbondActive();
+            const bondActive = await bond.connect(addr1).setBondActive();
             await bondActive.wait();
 
             const deviceRegister = await bond.connect(addr1).registerDevice("123");
