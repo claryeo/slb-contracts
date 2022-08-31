@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-import "./device.sol";
+// import "./device.sol";
 
 contract SLB_Bond is Ownable, Pausable{
 
@@ -202,6 +202,229 @@ contract SLB_Bond is Ownable, Pausable{
     require(block.timestamp >= activeDate, "Active date is not reached."); 
     
     status = BondState.ACTIVE;
+  }
+
+  /**
+   * @dev Role: Any, Bond state: Any
+   * @notice Calculates coupon date for each period
+  */
+  function couponDateCalculator(uint256 _activeDate, uint256 _maturityDate,
+          uint256 _periods, uint256 _currentPeriod) 
+          public 
+          pure 
+          returns(uint256){
+    uint256 _couponDate;
+    uint256 _term = (_maturityDate.sub(_activeDate)).div(_periods);
+    _couponDate = _activeDate + _term.mul(_currentPeriod);
+    return _couponDate;
+  }
+
+  /**
+   * @dev Role: ISSUER, Bond state: Active
+   * @notice Reports impact data for the period 
+  */
+  function reportImpact(uint256 _impactData_1, 
+                        uint256 _impactData_2, 
+                        uint256 _impactData_3,
+                        string memory _id, 
+                        bytes32 _signature) external onlyIssuer whenNotPaused {
+    require(status == BondState.ACTIVE, "Bond status is not Active.");
+    // couponDate calculations
+    currentPeriod = currentPeriod.add(1);
+    require(block.timestamp >= couponDateCalculator(activeDate, maturityDate, periods, currentPeriod),
+    "Current date is not past coupon date");
+    //included impact data arguments 
+    require(checkDevice(_id, _signature, _impactData_1, _impactData_2, _impactData_3) == true, "invalid signature");
+    
+    if(_impactData_1 > 0){
+      if(impactData_1 == 0){
+        impactData_1 = _impactData_1;
+      }
+      else{
+        impactData_1 = (impactData_1.add(_impactData_1)).div(currentPeriod);
+      }
+    }
+    if(_impactData_2 > 0){
+      if(impactData_2 == 0){
+        impactData_2 = _impactData_2;
+      }
+      else{
+        impactData_2 = (impactData_2.add(_impactData_2)).div(currentPeriod);
+      }
+    }
+    if(_impactData_3 > 0){
+      if(impactData_3 == 0){
+        impactData_3 = _impactData_3;
+      }
+      else{
+        impactData_3 = (impactData_3.add(_impactData_3)).div(currentPeriod);
+      }
+    }
+    isReported = true;
+    isVerified = false;
+
+    emit ReportedImpact(_signature);
+  }
+
+  /**
+   * @dev Role: VERIFIER, Bond state: Active
+   * @notice Verify impact data by setting KPI status 
+  */
+  function verifyImpact(bool _metKPIs) external onlyVerifier whenNotPaused {
+    require(status == BondState.ACTIVE, "Bond status is not Active.");
+    require(isReported == true, "Impact data has not been reported.");
+
+    metKPIs.push(_metKPIs);
+    // isReported = false; //NOTE: NO RESETTING - REPORTING PERIOD CHANGES AT EACH REPORT
+    isVerified = true;
+    
+    emit VerifiedImpact(_metKPIs);
+  }
+
+
+  /**
+   * @dev Role: Any, Bond state: Any
+   * @notice Checks if bond balance is sufficient
+  */
+  // Does not need to be pure because internal function - still cost gas
+  function checkBalance(uint256 _value) public view returns(bool) { 
+    bool _balanceSufficient;
+
+    if(address(this).balance < _value){ 
+      _balanceSufficient = false;
+      return _balanceSufficient;
+    }
+    _balanceSufficient = true;
+    return _balanceSufficient;
+  }
+
+  /**
+   * @dev Role: Any, Bond state: Any
+   * @notice Calculates coupon amount for period based on KPI status
+  */
+  function couponCalculator(uint256 _bondsPurchased, uint256 _claimPeriod) 
+          public 
+          view 
+          returns(uint256) {
+    uint256 _coupon = 0;
+    if(metKPIs[_claimPeriod-1] == true){
+      _coupon = coupon.mul(_bondsPurchased);
+      return _coupon;
+    }
+    else{
+      _coupon = (coupon.add(interestPenalty)).mul(_bondsPurchased);
+      return _coupon;
+    }
+  }
+
+  // INVESTORS CAN CLAIM ANY COUPON AT CURRENT PERIOD AND BEFORE
+  // ASSUMPTION: ALL PERIODS BEFORE CURRENT PERIOD HAVE BEEN VERIFIED
+  // CLAIM COUPON SHOULD ONLY WORK ONCE PER PERIOD FOR EACH INVESTOR 
+  /**
+   * @dev Role: INVESTOR, Bond state: Active
+   * @notice Claim coupon amount from bond balance for the period. 
+   * If bond balance has insufficient funds, set bond status to Bankrupt.
+  */
+  function claimCoupon(uint256 _claimPeriod) public whenNotPaused{
+    require(status == BondState.ACTIVE, "Bond status is not Active."); 
+    require(isVerified == true, "Impact data has not been verified.");
+    require(bondsCount[msg.sender] > 0, "No bonds purchased");
+    require(_claimPeriod <= currentPeriod, "This period's coupon is not yet available.");
+
+    // call internal calculation function for value 
+    uint256 _value = couponCalculator(bondsCount[msg.sender], _claimPeriod);
+
+    //check balance for value at each 
+    if(checkBalance(_value) == true){
+      // check if bond for this buyer has coupon previously claimed?
+      if(fundsClaimed[msg.sender][_claimPeriod-1] == false){
+        payable(msg.sender).transfer(_value);
+        fundsClaimed[msg.sender][_claimPeriod-1] = true;
+        emit ClaimedCoupons(msg.sender, _claimPeriod);
+      }
+      else{
+        revert("Coupon has been claimed.");
+      }
+    }
+    else{
+      status = BondState.BANKRUPT;
+    }
+  }
+
+  /**
+   * @dev Role: INVESTOR, Bond state: Active
+   * @notice Claim principal amount from bond balance at maturity.
+   * If bond balance has insufficient funds, set bond status to Bankrupt.
+  */
+  function claimPrincipal() public whenNotPaused {
+    require(status == BondState.ACTIVE, "Bond status is not Active.");
+    require(isVerified == true, "Impact data has not been verified.");
+    require(currentPeriod == periods, "Bond has not reached maturity.");
+    require(bondsCount[msg.sender] > 0, "No bonds purchased");
+    require(totalDebt > 0, "Investor has claimed principal.");
+  
+    uint256 _value = bondPrice.mul(bondsCount[msg.sender]);
+
+    //check balance for value at each 
+    if(checkBalance(_value) == true){
+      if(fundsClaimed[msg.sender][currentPeriod] == false){
+        payable(msg.sender).transfer(_value);
+        fundsClaimed[msg.sender][currentPeriod] = true;
+        totalDebt = totalDebt.sub(_value);
+        emit ClaimedPrincipal(msg.sender, currentPeriod);
+      }
+      else{
+      revert("Principal has been claimed.");
+      }
+    }
+    else{
+      status = BondState.BANKRUPT;
+    }
+  }
+
+  /**
+   * @dev Role: INVESTOR, Bond state: Bankrupt
+   * Solidity does not support floating point calculations so proportion is already calculated from frontend
+   * @notice Claim amount from bond balance by percentage of holdings
+  */
+  function defaultClaim(uint256 _value) public whenNotPaused {
+    require(status == BondState.BANKRUPT, "Bond status is not Bankrupt.");
+    require(bondsCount[msg.sender] > 0, "No bonds purchased");
+
+    payable(msg.sender).transfer(_value);
+
+    emit ClaimedDefault(msg.sender, bondsCount[msg.sender]);
+
+    bondsCount[msg.sender] = 0;
+  }
+
+  /**
+   * @dev Role: REGULATOR, Bond state: Any 
+   * @notice Freeze bond to halt all transactions
+  */
+  function freezeBond() public onlyOwner{
+    _pause();
+    emit Freeze();
+  }
+
+  /**
+   * @dev Role: REGULATOR, Bond state: Any 
+   * @notice Unfreeze bond to revert to original state
+  */
+  function unfreezeBond() public onlyOwner{
+    _unpause();
+    emit Unfreeze();
+  }
+
+  /**
+   * @dev Role: ISSUER, Bond state: Issued
+   * @notice Sets bond status to Redeemed when no further bond activity is required
+  */
+  function setBondRedeemed() external onlyIssuer whenNotPaused {
+    require(status == BondState.ACTIVE, "Bond status is not Active.");
+    require(block.timestamp >= finalRedemptionDate, "Bond has not reached final redemption date."); 
+    
+    status = BondState.REDEEMED;
   }
 
   //GETTER FUNCTIONS
