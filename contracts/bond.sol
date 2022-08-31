@@ -4,9 +4,9 @@ pragma solidity >=0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
-// import "./device.sol";
+import "./device.sol";
 
-contract SLB_Bond is Ownable, Pausable{
+contract SLB_Bond is Ownable, Pausable, IoT_Device{
 
   using SafeMath for uint256;
 
